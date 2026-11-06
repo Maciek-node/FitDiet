@@ -23,10 +23,19 @@
     return changed;
   };
   const request = async (url, options={}) => {
-    const response = await fetch(url, {credentials:'same-origin', ...options, headers:{'Content-Type':'application/json', ...(options.headers||{})}});
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `Błąd serwera (${response.status}).`);
-    return data;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(url, {credentials:'same-origin', ...options, signal:controller.signal, headers:{'Content-Type':'application/json', ...(options.headers||{})}});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Błąd serwera (${response.status}).`);
+      return data;
+    } catch (error) {
+      if (error.name === 'AbortError') throw new Error(`Serwer nie odpowiedział na ${url} w ciągu 20 sekund. Spróbuj ponownie za chwilę.`);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   };
   const defaultAssignments = () => {
     const monday = new Date();
@@ -65,7 +74,8 @@
   };
   const showGate = (message='') => {
     const root = ensureScreen();
-    root.innerHTML = `<main class="account-screen"><section class="account-card"><div class="account-brand"><span class="brand-mark">✳</span><span>dobry<span class="brand-light">talerz</span></span></div><span class="eyebrow">PRYWATNA APLIKACJA</span><h1 id="account-title">Zaloguj się</h1><p id="account-description">Zaloguj się na konto właściciela, aby otworzyć swoje przepisy i plany.</p><form id="account-form"><label>Adres e-mail<input type="email" name="email" autocomplete="username" required maxlength="254" /></label><label>Hasło<input type="password" name="password" autocomplete="current-password" required minlength="10" maxlength="128" /></label><button class="button primary account-submit" type="submit">Zaloguj się</button></form><p class="account-message" id="account-message" role="status">${message}</p></section></main>`;
+    root.innerHTML = `<main class="account-screen"><section class="account-card"><div class="account-brand"><span class="brand-mark">✳</span><span>dobry<span class="brand-light">talerz</span></span></div><span class="eyebrow">PRYWATNA APLIKACJA</span><h1 id="account-title">Zaloguj się</h1><p id="account-description">Zaloguj się na konto właściciela, aby otworzyć swoje przepisy i plany.</p><form id="account-form"><label>Adres e-mail<input type="email" name="email" autocomplete="username" required maxlength="254" /></label><label>Hasło<input type="password" name="password" autocomplete="current-password" required minlength="10" maxlength="128" /></label><button class="button primary account-submit" type="submit">Zaloguj się</button></form><p class="account-message" id="account-message" role="status"></p></section></main>`;
+    setMessage(message);
     const form = root.querySelector('#account-form');
     form.addEventListener('submit', async event => {
       event.preventDefault();
@@ -117,10 +127,13 @@
   const boot = async () => {
     document.body.classList.remove('account-ready');
     document.body.classList.add('account-pending');
+    const root = ensureScreen();
+    root.innerHTML = `<main class="account-screen"><section class="account-card"><div class="account-brand"><span class="brand-mark">✳</span><span>dobry<span class="brand-light">talerz</span></span></div><span class="eyebrow">PRYWATNA APLIKACJA</span><h1>Otwieram Twoją kuchnię…</h1><p id="account-loading" role="status">Sprawdzam sesję.</p></section></main>`;
     try {
       const auth = await request('/api/auth');
       if (!auth.authenticated) { document.body.classList.remove('account-pending'); showGate(); return {authenticated:false}; }
       user = auth.user;
+      root.querySelector('#account-loading').textContent = 'Pobieram przepisy i plany.';
       const result = await request('/api/state');
       let state = result.state || {};
       if (!Object.keys(state).length) {
@@ -140,12 +153,14 @@
           missing.dietWeekAssignments = assignments;
         }
         if (Object.keys(missing).length) {
+          root.querySelector('#account-loading').textContent = 'Aktualizuję zapis konta.';
           await request('/api/state', {method:'PUT', body:JSON.stringify({state:missing})});
         }
       }
       const changed = writeLocalState(state);
       if (changed) return {authenticated:true,reload:true};
       document.body.classList.remove('account-pending');
+      root.remove();
       document.body.classList.add('account-ready');
       renderAccountBar();
       return {authenticated:true,reload:false};
