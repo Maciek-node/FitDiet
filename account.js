@@ -36,6 +36,20 @@
     const next = new Date(monday); next.setDate(next.getDate()+7);
     return {1:[key(monday)], 2:[key(next)]};
   };
+  const normalizeAssignments = value => {
+    const result = {};
+    for (const week of [1,2]) {
+      const stored = value && !Array.isArray(value) ? value[week] : null;
+      const dates = Array.isArray(stored) ? stored : typeof stored === 'string' && stored ? [stored] : [];
+      result[week] = [...new Set(dates.filter(Boolean).map(date => {
+        const monday = new Date(`${date}T12:00:00`);
+        if (Number.isNaN(monday.getTime())) return null;
+        monday.setDate(monday.getDate() - ((monday.getDay()+6)%7));
+        return `${monday.getFullYear()}-${String(monday.getMonth()+1).padStart(2,'0')}-${String(monday.getDate()).padStart(2,'0')}`;
+      }).filter(Boolean))];
+    }
+    return result;
+  };
   const initialServerState = () => ({
     recipes:(window.DIETA_RECIPES||[]).map(recipe=>({...recipe,id:globalThis.crypto?.randomUUID?.()||`id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`})),
     plans:[], pantry:[], checked:[], hiddenDietMeals:[], dietWeekAssignments:defaultAssignments(), householdSize:'2'
@@ -112,6 +126,22 @@
       if (!Object.keys(state).length) {
         state = initialServerState();
         await request('/api/state', {method:'PUT', body:JSON.stringify({state})});
+      } else {
+        const defaults = initialServerState(), missing = {};
+        for (const key of STATE_KEYS) {
+          if (state[key] === undefined || state[key] === null) {
+            state[key] = defaults[key];
+            missing[key] = state[key];
+          }
+        }
+        const assignments = normalizeAssignments(state.dietWeekAssignments);
+        if (JSON.stringify(assignments) !== JSON.stringify(state.dietWeekAssignments)) {
+          state.dietWeekAssignments = assignments;
+          missing.dietWeekAssignments = assignments;
+        }
+        if (Object.keys(missing).length) {
+          await request('/api/state', {method:'PUT', body:JSON.stringify({state:missing})});
+        }
       }
       const changed = writeLocalState(state);
       if (changed) return {authenticated:true,reload:true};
