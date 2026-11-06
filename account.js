@@ -158,7 +158,7 @@
         }
       }
       const changed = writeLocalState(state);
-      if (changed) return {authenticated:true,reload:true};
+      if (changed) window.DietApp?.hydrateFromStorage?.();
       document.body.classList.remove('account-pending');
       root.remove();
       document.body.classList.add('account-ready');

@@ -52,6 +52,18 @@ if (!localStorage.getItem('dobrytalerz:sourceMeasures-v2') && Array.isArray(wind
 const validViews=['overview','recipes','plan','shopping','pantry'];
 let currentView = validViews.includes(location.hash.slice(1))?location.hash.slice(1):'overview', shoppingPeriod = 'manual:7', shoppingDays = [], shoppingDaysDraft = [], shoppingDaysOpen = false;
 let householdSize = Math.max(1,Math.min(12,Number(localStorage.getItem('dobrytalerz:householdSize'))||2));
+// Apply the authenticated server snapshot directly to the live app. Reloading
+// here would rerun the pre-login source import and could create a reload loop.
+window.DietApp = window.DietApp || {};
+window.DietApp.hydrateFromStorage = () => {
+  recipes = read('recipes');
+  plans = read('plans');
+  pantry = read('pantry');
+  checked = read('checked');
+  hiddenDietMeals = read('hiddenDietMeals');
+  dietWeekAssignments = read('dietWeekAssignments');
+  householdSize = Math.max(1,Math.min(12,Number(localStorage.getItem('dobrytalerz:householdSize'))||2));
+};
 const titleMap = {overview:'Przegląd',recipes:'Przepisy',plan:'Plan posiłków',shopping:'Lista zakupów',pantry:'Spiżarnia'};
 const escapeHTML = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dayNames = ['Niedz.','Pon.','Wt.','Śr.','Czw.','Pt.','Sob.'];
