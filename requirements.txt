@@ -1,0 +1,2 @@
+# Dobry Talerz uses only Python's standard library. Keep this file so
+# Render's default `pip install -r requirements.txt` build command succeeds.
