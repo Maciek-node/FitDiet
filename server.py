@@ -26,7 +26,7 @@ COOKIE_NAME = "fitdiet_session"
 MAX_BODY = 6 * 1024 * 1024
 STATE_KEYS = {
     "recipes", "plans", "pantry", "checked", "hiddenDietMeals",
-    "dietWeekAssignments", "householdSize",
+    "dietWeekAssignments", "householdSize", "sourceImportVersion",
 }
 FAILED_LOGINS: dict[str, list[float]] = {}
 DUMMY_SALT = b"dobry-talerz-login-check"
@@ -124,7 +124,7 @@ def configure_single_user() -> None:
             user_id = cursor.lastrowid
         if not db.execute("SELECT 1 FROM user_state WHERE user_id=? LIMIT 1", (user_id,)).fetchone():
             defaults = {"recipes": [], "plans": [], "pantry": [], "checked": [], "hiddenDietMeals": [],
-                        "dietWeekAssignments": {}, "householdSize": "2"}
+                        "dietWeekAssignments": {}, "householdSize": "2", "sourceImportVersion": 0}
             db.executemany("INSERT INTO user_state(user_id,state_key,value_json,updated_at) VALUES(?,?,?,?)",
                            [(user_id, key, json.dumps(value, ensure_ascii=False), int(time.time()))
                             for key, value in defaults.items()])

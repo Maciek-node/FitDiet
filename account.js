@@ -1,6 +1,6 @@
 (() => {
   const PREFIX = 'dobrytalerz:';
-  const STATE_KEYS = ['recipes','plans','pantry','checked','hiddenDietMeals','dietWeekAssignments','householdSize'];
+  const STATE_KEYS = ['recipes','plans','pantry','checked','hiddenDietMeals','dietWeekAssignments','householdSize','sourceImportVersion'];
   let user = null;
   let writeQueue = Promise.resolve();
 
@@ -61,7 +61,7 @@
   };
   const initialServerState = () => ({
     recipes:(window.DIETA_RECIPES||[]).map(recipe=>({...recipe,id:globalThis.crypto?.randomUUID?.()||`id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`})),
-    plans:[], pantry:[], checked:[], hiddenDietMeals:[], dietWeekAssignments:defaultAssignments(), householdSize:'2'
+    plans:[], pantry:[], checked:[], hiddenDietMeals:[], dietWeekAssignments:defaultAssignments(), householdSize:'2', sourceImportVersion:1
   });
   const setMessage = message => {
     const node = document.querySelector('#account-message');
@@ -140,12 +140,20 @@
         state = initialServerState();
         await request('/api/state', {method:'PUT', body:JSON.stringify({state})});
       } else {
-        const defaults = initialServerState(), missing = {};
+        const defaults = {...initialServerState(), sourceImportVersion:0}, missing = {};
         for (const key of STATE_KEYS) {
           if (state[key] === undefined || state[key] === null) {
             state[key] = defaults[key];
             missing[key] = state[key];
           }
+        }
+        if (Number(state.sourceImportVersion) < 1) {
+          if (!Array.isArray(state.recipes) || state.recipes.length === 0) {
+            state.recipes = (window.DIETA_RECIPES||[]).map(recipe=>({...recipe,id:globalThis.crypto?.randomUUID?.()||`id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`}));
+            missing.recipes = state.recipes;
+          }
+          state.sourceImportVersion = 1;
+          missing.sourceImportVersion = 1;
         }
         const assignments = normalizeAssignments(state.dietWeekAssignments);
         if (JSON.stringify(assignments) !== JSON.stringify(state.dietWeekAssignments)) {
